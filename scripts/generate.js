@@ -6,18 +6,22 @@ import { themes, getRandomTheme } from './themes.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const TEMPLATE_PATH = path.join(__dirname, '../templates/base.html');
-const OUTPUT_DIR = path.join(__dirname, '../output');
-
-// Проверка наличия API ключа
+// ========== ПРОВЕРКА API КЛЮЧА ==========
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
   console.error('❌ ANTHROPIC_API_KEY not set in environment variables');
+  console.error('Please add it to GitHub Secrets or set it locally');
   process.exit(1);
 }
+console.log('✅ API key found, length:', ANTHROPIC_API_KEY.length);
 
-// Функция вызова Claude API
+const TEMPLATE_PATH = path.join(__dirname, '../templates/base.html');
+const OUTPUT_DIR = path.join(__dirname, '../output');
+
+// ========== ФУНКЦИЯ ВЫЗОВА CLAUDE API ==========
 async function callClaude(prompt) {
+  console.log('📤 Calling Claude API...');
+  
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -34,14 +38,16 @@ async function callClaude(prompt) {
   });
   
   if (!response.ok) {
-    throw new Error(`Claude API error: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Claude API error (${response.status}): ${errorText}`);
   }
   
   const data = await response.json();
+  console.log('✅ Claude API response received');
   return data.content[0].text;
 }
 
-// Генерация промпта
+// ========== ФУНКЦИЯ ГЕНЕРАЦИИ ПРОМПТА ==========
 function buildPrompt(themeName, themeConfig) {
   return `Ты — эксперт по созданию браузерных игр-симуляторов. Создай полностью рабочий HTML-файл для игры на тему "${themeConfig.name} ${themeConfig.emoji}".
 
@@ -77,7 +83,7 @@ function buildPrompt(themeName, themeConfig) {
 Создай игру-симулятор "${themeConfig.name}"!`;
 }
 
-// Основная функция
+// ========== ОСНОВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ==========
 async function generateSimulator(themeName = null) {
   const selectedTheme = themeName || getRandomTheme();
   const themeConfig = themes[selectedTheme];
@@ -90,7 +96,6 @@ async function generateSimulator(themeName = null) {
   console.log(`📝 Building prompt...`);
   
   const prompt = buildPrompt(selectedTheme, themeConfig);
-  console.log(`📤 Calling Claude API...`);
   
   let html;
   try {
@@ -129,7 +134,7 @@ async function generateSimulator(themeName = null) {
   return { theme: selectedTheme, path: indexPath, metadata };
 }
 
-// Запись в историю
+// ========== ЗАПИСЬ В ИСТОРИЮ ==========
 async function updateHistory(result) {
   const historyPath = path.join(OUTPUT_DIR, '../data/history.json');
   await fs.ensureDir(path.dirname(historyPath));
@@ -142,7 +147,7 @@ async function updateHistory(result) {
   history.unshift({
     ...result,
     id: Date.now(),
-    url: `https://${process.env.GITHUB_REPOSITORY_OWNER}.github.io/${process.env.GITHUB_REPOSITORY_NAME?.split('/')[1] || 'simulator-factory'}/${result.theme}/`
+    url: `https://${process.env.GITHUB_REPOSITORY_OWNER || 'anikavojn'}.github.io/${process.env.GITHUB_REPOSITORY_NAME?.split('/')[1] || 'simulator-factory'}/${result.theme}/`
   });
   
   // Оставляем только последние 100 записей
@@ -151,7 +156,7 @@ async function updateHistory(result) {
   await fs.writeJson(historyPath, history, { spaces: 2 });
 }
 
-// Запуск
+// ========== ЗАПУСК ==========
 async function main() {
   const theme = process.argv[2] || null;
   
@@ -164,8 +169,11 @@ async function main() {
     console.log(`📄 File: ${result.path}`);
     
     // Выводим для GitHub Actions
-    console.log(`::set-output name=theme::${result.theme}`);
-    console.log(`::set-output name=path::${result.path}`);
+    if (process.env.GITHUB_OUTPUT) {
+      const fs = await import('fs');
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, `theme=${result.theme}\n`);
+      fs.appendFileSync(process.env.GITHUB_OUTPUT, `path=${result.path}\n`);
+    }
     
   } catch (error) {
     console.error('❌ Generation failed:', error);
