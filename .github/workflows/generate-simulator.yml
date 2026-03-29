@@ -1,0 +1,92 @@
+name: 🤖 AI Simulator Factory - Generate & Deploy
+
+on:
+  # Ручной запуск
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: 'Specific theme (mining, farming, business, space, idle)'
+        required: false
+        default: ''
+        type: string
+  
+  # Автоматический запуск каждый день в 00:00 UTC
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Также запускаем при пуше в main (для тестирования)
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/**'
+      - 'templates/**'
+      - '.github/workflows/generate-simulator.yml'
+
+# Права для деплоя на GitHub Pages
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  generate-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: 📦 Install dependencies
+        run: npm install
+      
+      - name: 🤖 Generate simulator
+        id: generate
+        run: |
+          if [ -z "${{ github.event.inputs.theme }}" ]; then
+            node scripts/generate.js
+          else
+            node scripts/generate.js ${{ github.event.inputs.theme }}
+          fi
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      
+      - name: 📊 Save generation info
+        run: |
+          echo "Generated at: $(date)" >> output/latest.txt
+          echo "Theme: ${{ steps.generate.outputs.theme }}" >> output/latest.txt
+      
+      - name: 📝 Commit and push changes
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add output/ data/
+          git diff --quiet && git diff --staged --quiet || git commit -m "🤖 Auto-generate simulator: ${{ steps.generate.outputs.theme }}"
+          git push
+      
+      - name: 🚀 Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          publish_branch: gh-pages
+          force_orphan: false
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: "🚀 Deploy simulator: ${{ steps.generate.outputs.theme }}"
+      
+      - name: 📢 Create release notification
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "## 🎉 New simulator generated!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Theme:** ${{ steps.generate.outputs.theme }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated at:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ steps.generate.outputs.theme }}/" >> $GITHUB_STEP_SUMMARY

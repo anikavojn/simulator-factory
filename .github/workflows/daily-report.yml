@@ -1,0 +1,45 @@
+name: 📊 Daily Report
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Каждый день в 8:00 UTC
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 📊 Generate report
+        run: |
+          echo "# 📊 Simulator Factory Daily Report" > report.md
+          echo "" >> report.md
+          echo "**Date:** $(date)" >> report.md
+          echo "" >> report.md
+          echo "## 🎮 Active Simulators" >> report.md
+          echo "" >> report.md
+          
+          if [ -d "output" ]; then
+            for dir in output/*/; do
+              theme=$(basename "$dir")
+              if [ -f "$dir/index.html" ]; then
+                echo "- **$theme**: [Play]($dir)" >> report.md
+              fi
+            done
+          else
+            echo "No simulators generated yet." >> report.md
+          fi
+          
+          echo "" >> report.md
+          echo "## 📈 Generation History" >> report.md
+          echo "" >> report.md
+          
+          if [ -f "data/history.json" ]; then
+            cat data/history.json | jq -r '.[:5] | .[] | "- **\(.theme)** (generated: \(.generatedAt))"' >> report.md
+          fi
+      
+      - name: 📢 Post report
+        run: |
+          echo "## Daily Report" >> $GITHUB_STEP_SUMMARY
+          cat report.md >> $GITHUB_STEP_SUMMARY
