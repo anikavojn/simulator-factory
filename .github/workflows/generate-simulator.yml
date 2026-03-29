@@ -10,12 +10,6 @@ on:
         type: string
   schedule:
     - cron: '0 0 * * *'
-  push:
-    branches: [ main ]
-    paths:
-      - 'scripts/**'
-      - 'templates/**'
-      - '.github/workflows/generate-simulator.yml'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -31,12 +25,10 @@ jobs:
     
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v4
       
       - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -55,11 +47,6 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       
-      - name: 📊 Save generation info
-        run: |
-          echo "Generated at: $(date)" >> output/latest.txt
-          echo "Theme: ${{ steps.generate.outputs.theme }}" >> output/latest.txt
-      
       - name: 📝 Commit and push changes
         run: |
           git config --local user.email "actions@github.com"
@@ -75,6 +62,3 @@ jobs:
           publish_dir: ./output
           publish_branch: gh-pages
           force_orphan: false
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: "🚀 Deploy simulator: ${{ steps.generate.outputs.theme }}"
