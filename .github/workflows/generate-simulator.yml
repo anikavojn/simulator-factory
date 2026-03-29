@@ -1,7 +1,6 @@
 name: 🤖 AI Simulator Factory - Generate & Deploy
 
 on:
-  # Ручной запуск
   workflow_dispatch:
     inputs:
       theme:
@@ -9,12 +8,8 @@ on:
         required: false
         default: ''
         type: string
-  
-  # Автоматический запуск каждый день в 00:00 UTC
   schedule:
     - cron: '0 0 * * *'
-  
-  # Также запускаем при пуше в main (для тестирования)
   push:
     branches: [ main ]
     paths:
@@ -22,7 +17,9 @@ on:
       - 'templates/**'
       - '.github/workflows/generate-simulator.yml'
 
-# Права для деплоя на GitHub Pages
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
   pages: write
@@ -34,12 +31,12 @@ jobs:
     
     steps:
       - name: 📥 Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       
       - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
@@ -72,7 +69,7 @@ jobs:
           git push
       
       - name: 🚀 Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./output
@@ -81,12 +78,3 @@ jobs:
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: "🚀 Deploy simulator: ${{ steps.generate.outputs.theme }}"
-      
-      - name: 📢 Create release notification
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-        run: |
-          echo "## 🎉 New simulator generated!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Theme:** ${{ steps.generate.outputs.theme }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Generated at:** $(date)" >> $GITHUB_STEP_SUMMARY
-          echo "**URL:** https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/${{ steps.generate.outputs.theme }}/" >> $GITHUB_STEP_SUMMARY
